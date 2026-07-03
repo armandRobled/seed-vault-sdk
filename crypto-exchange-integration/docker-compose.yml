@@ -1,0 +1,92 @@
+# Docker Compose for local development with all services
+
+version: '3.8'
+
+services:
+  # Dogecoin mainnet node
+  dogecoin-mainnet:
+    image: dogecoin/dogecoin:latest
+    container_name: dogecoin-mainnet
+    ports:
+      - "22556:22556"  # P2P
+      - "22555:22555"  # RPC
+    volumes:
+      - dogecoin-mainnet-data:/root/.dogecoin
+    environment:
+      - DOGECOIN_NET=mainnet
+    command: >
+      dogecoind
+      -daemon
+      -server
+      -rpcuser=dogecoin
+      -rpcpassword=dogecoin123
+      -txindex=1
+      -rest
+
+  # Dogecoin testnet node
+  dogecoin-testnet:
+    image: dogecoin/dogecoin:latest
+    container_name: dogecoin-testnet
+    ports:
+      - "44556:44556"  # P2P
+      - "44555:44555"  # RPC
+    volumes:
+      - dogecoin-testnet-data:/root/.dogecoin
+    environment:
+      - DOGECOIN_NET=testnet
+    command: >
+      dogecoind
+      -testnet
+      -daemon
+      -server
+      -rpcuser=dogecoin
+      -rpcpassword=dogecoin123
+      -txindex=1
+      -rest
+
+  # Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: crypto-exchange-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - BITMEX_API_KEY=${BITMEX_API_KEY}
+      - BITMEX_API_SECRET=${BITMEX_API_SECRET}
+      - DOGECOIN_MAINNET_RPC_URL=http://dogecoin-mainnet:22555
+      - DOGECOIN_MAINNET_RPC_USER=dogecoin
+      - DOGECOIN_MAINNET_RPC_PASSWORD=dogecoin123
+      - DOGECOIN_TESTNET_RPC_URL=http://dogecoin-testnet:44555
+      - DOGECOIN_TESTNET_RPC_USER=dogecoin
+      - DOGECOIN_TESTNET_RPC_PASSWORD=dogecoin123
+    depends_on:
+      - dogecoin-mainnet
+      - dogecoin-testnet
+    volumes:
+      - .:/app
+      - /app/node_modules
+    networks:
+      - crypto-network
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: crypto-exchange-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - crypto-network
+
+volumes:
+  dogecoin-mainnet-data:
+  dogecoin-testnet-data:
+  redis-data:
+
+networks:
+  crypto-network:
+    driver: bridge
